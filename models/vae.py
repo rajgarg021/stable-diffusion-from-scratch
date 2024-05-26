@@ -100,39 +100,67 @@ class VAE_Encoder(nn.Sequential):
 
     def __init__(self):
         super.__init__(
-            nn.Conv2d(3, 128, kernel_size=3, padding=1), # (B, C, H, W) -> (B, 128, H, W)
-            VAE_ResidualBlock(128, 128), # (B, 128, H, W) -> (B, 128, H, W)
-            VAE_ResidualBlock(128, 128), # (B, 128, H, W) -> (B, 128, H, W)
+            # (B, C, H, W) -> (B, 128, H, W)
+            nn.Conv2d(3, 128, kernel_size=3, padding=1),
 
-            nn.Conv2d(128, 128, kernel_size=3, stride=2, padding=0), # decreasing image size (B, 128, H, W) -> (B, 128, H/2, W/2)
-            VAE_ResidualBlock(128, 256), # increasing number of features (B, 128, H/2, W/2) -> (B, 256, H/2, W/2)
-            VAE_ResidualBlock(256, 256), # (B, 256, H/2, W/2) -> (B, 256, H/2, W/2)
+            # (B, 128, H, W) -> (B, 128, H, W)
+            VAE_ResidualBlock(128, 128),
 
-            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=0), # decreasing image size (B, 256, H/2, W/2) -> (B, 256, H/4, W/4)
-            VAE_ResidualBlock(256, 512), # increasing number of features (B, 256, H/4, W/4) -> (B, 512, H/4, W/4)
-            VAE_ResidualBlock(512, 512), # (B, 512, H/4, W/4) -> (B, 512, H/4, W/4)
+            # (B, 128, H, W) -> (B, 128, H, W)
+            VAE_ResidualBlock(128, 128),
 
-            nn.Conv2d(512, 512, kernel_size=3, stride=2, padding=0), # decreasing image size (B, 512, H/4, W/4) -> (B, 512, H/8, W/8)
-            VAE_ResidualBlock(512, 512), # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
-            VAE_ResidualBlock(512, 512), # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
-            VAE_ResidualBlock(512, 512), # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            # decreasing image size (B, 128, H, W) -> (B, 128, H/2, W/2)
+            nn.Conv2d(128, 128, kernel_size=3, stride=2, padding=0),
 
-            VAE_AttentionBlock(512), # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            # increasing number of features (B, 128, H/2, W/2) -> (B, 256, H/2, W/2)
+            VAE_ResidualBlock(128, 256),
 
-            VAE_ResidualBlock(512, 512), # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            # (B, 256, H/2, W/2) -> (B, 256, H/2, W/2)
+            VAE_ResidualBlock(256, 256),
 
-            nn.GroupNorm(num_groups=32, num_channels=512), # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            # decreasing image size (B, 256, H/2, W/2) -> (B, 256, H/4, W/4)
+            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=0),
+            
+            # increasing number of features (B, 256, H/4, W/4) -> (B, 512, H/4, W/4)
+            VAE_ResidualBlock(256, 512),
 
-            nn.SiLU(), # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            # (B, 512, H/4, W/4) -> (B, 512, H/4, W/4)
+            VAE_ResidualBlock(512, 512),
+
+            # decreasing image size (B, 512, H/4, W/4) -> (B, 512, H/8, W/8)
+            nn.Conv2d(512, 512, kernel_size=3, stride=2, padding=0),
+
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_ResidualBlock(512, 512),
+
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_ResidualBlock(512, 512),
+
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_ResidualBlock(512, 512),
+
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_AttentionBlock(512),
+
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_ResidualBlock(512, 512),
+
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            nn.GroupNorm(num_groups=32, num_channels=512),
+
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            nn.SiLU(),
 
             # because the padding=1, it means the W and H will increase by 2
             # out_H = in_H + padding_top + padding_bottom
             # out_W = in_W + padding_left + padding_right
             # since padding=1 means padding_top = padding_bottom = padding_left = padding_right = 1
             # since the out_W = in_W + 2 (same for out_H), it will compensate for the kernel_size of 3
-            nn.Conv2d(512, 8, kernel_size=3, padding=1), # (B, 512, H/8, W/8) -> (B, 8, H/8, W/8)
+            # (B, 512, H/8, W/8) -> (B, 8, H/8, W/8)
+            nn.Conv2d(512, 8, kernel_size=3, padding=1),
 
-            nn.Conv2d(8, 8, kernel_size=1, padding=0) # (B, 8, H/8, W/8) -> (B, 8, H/8, W/8)
+            # (B, 8, H/8, W/8) -> (B, 8, H/8, W/8)
+            nn.Conv2d(8, 8, kernel_size=1, padding=0),
         )
 
     def forward(self, x: torch.tensor, noise: torch.tensor):
@@ -169,5 +197,105 @@ class VAE_Encoder(nn.Sequential):
         # constant taken from: https://github.com/CompVis/stable-diffusion/blob/21f890f9da3cfbeaba8e2ac3c425ee9e998d5229/configs/stable-diffusion/v1-inference.yaml#L17C1-L17C1
         x *= 0.18215
         
+        return x
+
+
+class VAE_Decoder(nn.Sequential):
+    """
+    Decoder of the VAE
+    """
+
+    def __init__(self):
+        super().__init__(
+            # (B, 4, H/8, W/8) -> (B, 4, H/8, W/8)
+            nn.Conv2d(4, 4, kernel_size=1, padding=0),
+
+            # (B, 4, H/8, W/8) -> (B, 512, H/8, W/8)
+            nn.Conv2d(4, 512, kernel_size=3, padding=1),
+            
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_ResidualBlock(512, 512), 
+            
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_AttentionBlock(512), 
+            
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_ResidualBlock(512, 512), 
+            
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_ResidualBlock(512, 512), 
+            
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_ResidualBlock(512, 512), 
+            
+            # (B, 512, H/8, W/8) -> (B, 512, H/8, W/8)
+            VAE_ResidualBlock(512, 512), 
+            
+            # repeating the rows and columns of the data by scale_factor (like when you resize an image by doubling its size)
+            # (B, 512, H/8, W/8) -> (B, 512, H/4, W/4)
+            nn.Upsample(scale_factor=2),
+            
+            # (B, 512, H/4, W/4) -> (B, 512, H/4, W/4)
+            nn.Conv2d(512, 512, kernel_size=3, padding=1), 
+            
+            # (B, 512, H/4, W/4) -> (B, 512, H/4, W/4)
+            VAE_ResidualBlock(512, 512), 
+            
+            # (B, 512, H/4, W/4) -> (B, 512, H/4, W/4)
+            VAE_ResidualBlock(512, 512), 
+            
+            # (B, 512, H/4, W/4) -> (B, 512, H/4, W/4)
+            VAE_ResidualBlock(512, 512), 
+            
+            # (B, 512, H/4, W/4) -> (B, 512, H/2, W/2)
+            nn.Upsample(scale_factor=2), 
+            
+            # (B, 512, H/2, W/2) -> (B, 512, H/2, W/2)
+            nn.Conv2d(512, 512, kernel_size=3, padding=1), 
+            
+            # (B, 512, H/2, W/2) -> (B, 256, H/2, W/2)
+            VAE_ResidualBlock(512, 256), 
+            
+            # (B, 256, H/2, W/2) -> (B, 256, H/2, W/2)
+            VAE_ResidualBlock(256, 256), 
+            
+            # (B, 256, H/2, W/2) -> (B, 256, H/2, W/2)
+            VAE_ResidualBlock(256, 256), 
+            
+            # (B, 256, H/2, W/2) -> (B, 256, H, W)
+            nn.Upsample(scale_factor=2), 
+            
+            # (B, 256, H, W) -> (B, 256, H, W)
+            nn.Conv2d(256, 256, kernel_size=3, padding=1), 
+            
+            # (B, 256, H, W) -> (B, 128, H, W)
+            VAE_ResidualBlock(256, 128), 
+            
+            # (B, 128, H, W) -> (B, 128, H, W)
+            VAE_ResidualBlock(128, 128), 
+            
+            # (B, 128, H, W) -> (B, 128, H, W)
+            VAE_ResidualBlock(128, 128), 
+            
+            # (B, 128, H, W) -> (B, 128, H, W)
+            nn.GroupNorm(32, 128), 
+            
+            # (B, 128, H, W) -> (B, 128, H, W)
+            nn.SiLU(), 
+            
+            # (B, 128, H, W) -> (B, 3, H, W)
+            nn.Conv2d(128, 3, kernel_size=3, padding=1), 
+        )
+
+    def forward(self, x):
+        """ x: (B, 4, H/8, W/8) """
+        
+        # removing the scaling added by the Encoder
+        x /= 0.18215
+
+        for module in self:
+            x = module(x)
+
+        # (B, 3, H, W)
         return x
     
