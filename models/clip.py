@@ -4,9 +4,9 @@ import torch.nn.functional as F
 from attention import SelfAttention
 
 
-class CLIPEmbeddings(nn.Module):
+class CLIPTextEmbeddings(nn.Module):
     """
-    Module to generate embeddings for CLIP
+    Module to generate text embeddings for CLIP
     """
 
     def __init__(self, n_vocab: int, d_embed: int, n_tokens: int):
@@ -28,7 +28,7 @@ class CLIPEmbeddings(nn.Module):
 
 class CLIPLayer(nn.Module):
     """
-    Single encoder layer of CLIP
+    Single text encoder layer of CLIP
     """
 
     def __init__(self, n_heads: int, d_embed: int):
@@ -46,13 +46,13 @@ class CLIPLayer(nn.Module):
     def forward(self, x: torch.tensor):
         """ x: (B, seq_len, d_embed) """
 
-        # SELF ATTENTION
+        ## SELF ATTENTION
         residue = x
         x = self.norm1(x)
         x = self.attention(x, causal_mask=True)
         x += residue
 
-        # FEED FORWARD
+        ## FEED FORWARD
         residue = x
         x = self.norm2(x)
         x = self.ln1(x)
@@ -61,4 +61,32 @@ class CLIPLayer(nn.Module):
         x += residue
 
         return x
+    
+
+class CLIP(nn.Module):
+    """
+    CLIP Model
+    """
+
+    def __init__(self):
+        self.embeddings = CLIPTextEmbeddings(49408, 768, 77)
+        self.layers = nn.ModuleList([
+            CLIPLayer(n_heads=12, d_embed=768) for i in range(12)
+        ])
+
+        self.norm = nn.LayerNorm(768)
+
+    def forward(self, tokens: torch.LongTensor):
+        tokens = tokens.type(torch.long)
+
+        # (B, seq_len) -> (B, seq_len, d_embed)
+        state = self.embeddings(tokens)
+
+        for layer in self.layers:
+            state = layer(state)
+
+        # (B, seq_len, d_embed)
+        output = self.norm(state)
+
+        return output
     
