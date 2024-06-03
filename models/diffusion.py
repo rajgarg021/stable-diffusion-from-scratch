@@ -3,9 +3,24 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class TimeEmbeddings():
-    def __init__(self):
-        raise NotImplementedError
+class TimeEmbeddings(nn.Module):
+    """
+    Module to generate time embeddings
+    """
+
+    def __init__(self, d_embed: int):
+        super().__init__()
+        self.ln1 = nn.Linear(d_embed, 4 * d_embed)
+        self.ln2 = nn.Linear(4 * d_embed, d_embed)
+
+    def forward(self, x: torch.tensor):
+        """ x: (1, 320) """
+
+        x = self.ln1(x)
+        x = F.silu(x)
+        x = self.ln2(x)
+
+        return x
         
 
 class UNet():
