@@ -181,10 +181,26 @@ class Unet(nn.Module):
 
 
 class UNetFinalLayer():
-    def __init__(self):
-        raise NotImplementedError
+    """
+    Final output layer of our UNet
+    """
 
-        
+    def __init__(self, in_channels: int, out_channels: int):
+        super().__init__()
+        self.gn = nn.GroupNorm(num_groups=32, num_channels=in_channels)
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+
+    def forward(self, x):
+        """ x: (B, 320, H/8, W/8) """
+
+        x = self.gn(x)
+        x = F.silu(x)
+        x = self.conv(x)
+
+        # (B, 4, H/4, W/8)
+        return x
+
+
 class LDM(nn.Module):
     """
     Latent Diffusion Model
