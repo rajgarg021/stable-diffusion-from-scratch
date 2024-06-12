@@ -20,12 +20,49 @@ class TimeEmbeddings(nn.Module):
         x = F.silu(x)
         x = self.ln2(x)
 
+        # (1, 1280)
         return x
         
 
-class ResidualBlock():
-    def __init__(self):
-        raise NotImplementedError
+class ResidualBlock(nn.Module):
+    """
+    Residual block for the UNet
+    """
+
+    def __init__(self, in_channels: int, out_channels: int, d_time=1280):
+        super().__init__()
+        self.gn1 = nn.GroupNorm(num_groups=32, num_channels=in_channels)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.linear = nn.Linear(d_time, out_channels)
+        
+        self.gn2 = nn.GroupNorm(num_groups=32, num_channels=out_channels)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+
+        if in_channels == out_channels:
+            self.residual_layer = nn.Identity()
+        else:
+            self.residual_layer = nn.Conv2d(in_channels, out_channels, kernel_size=1, padding=0)
+
+    def forward(self, latents: torch.tensor, time: torch.tensor):
+        """
+        latents: (B, in_channels, H, W)
+        time: (1, 1280)
+        """
+
+        residue = latents
+        latents = self.gn1(latents)
+        latents = F.silu(latents)
+        latents = self.conv1(latents)
+
+        time = F.silu(time)
+        time = self.linear(time)
+
+        merged = latents + time.unsqueeze(-1).unsqueeze(-1)
+        merged = self.gn2(merged)
+        merged = F.silu(merged)
+        merged = self.conv2(merged)
+
+        return merged + self.residual_layer(residue)
     
 
 class AttentionBlock():
