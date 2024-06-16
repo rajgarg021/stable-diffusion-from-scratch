@@ -200,7 +200,7 @@ class SwitchSequential(nn.Sequential):
         return x
 
 
-class Unet(nn.Module):
+class UNet(nn.Module):
     """
     neural network for the reverse diffusion process
     """
