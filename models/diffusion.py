@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+from attention import SelfAttention, CrossAttention
 
 class TimeEmbeddings(nn.Module):
     """
@@ -66,9 +66,108 @@ class ResidualBlock(nn.Module):
     
 
 class AttentionBlock():
-    def __init__(self):
-        raise NotImplementedError
-    
+    """
+    Attention block for the UNet
+    """
+
+    def __init__(self, n_heads: int, d_embed: int, d_context=768):
+        super().__init__()
+
+        channels = n_heads * d_embed
+        self.gn = nn.GroupNorm(num_groups=32, num_channels=channels, eps=1e-6)
+        self.conv_input = nn.Conv2d(channels, channels, kernel_size=1, padding=0)
+
+        self.ln1 = nn.LayerNorm(channels)
+        self.attention1 = SelfAttention(n_heads, channels, in_proj_bias=False)
+        self.ln2 = nn.LayerNorm(channels)
+        self.attention2 = CrossAttention(n_heads, channels, d_context, in_proj_bias=False)
+        self.ln3 = nn.LayerNorm(channels)
+        self.geglu1  = nn.Linear(channels, 4 * channels * 2)
+        self.geglu2 = nn.Linear(4 * channels, channels)
+
+        self.conv_output = nn.Conv2d(channels, channels, kernel_size=1, padding=0)
+
+    def forward(self, x, context):
+        """
+        x: (B, C, H, W)
+        context: (B, seq_len, d_context)
+        """
+        
+        residue_long = x
+
+        # (B, C, H, W) -> (B, C, H, W)
+        x = self.gn(x)
+        
+        # (B, C, H, W) -> (B, C, H, W)
+        x = self.conv_input(x)
+        
+        B, C, H, W = x.shape
+        
+        # (B, C, H, W) -> (B, C, H * W)
+        x = x.view((B, C, H * W))
+        
+        # (B, C, H * W) -> (B, H * W, C)
+        x = x.transpose(-1, -2)
+        
+        # Normalization + Self-Attention with skip connection
+
+        # (B, H * W, C)
+        residue_short = x
+        
+        # (B, H * W, C) -> (B, H * W, C)
+        x = self.ln1(x)
+        
+        # (B, H * W, C) -> (B, H * W, C)
+        x = self.attention1(x)
+        
+        # (B, H * W, C) + (B, H * W, C) -> (B, H * W, C)
+        x += residue_short
+        
+        # (B, H * W, C)
+        residue_short = x
+
+        # Normalization + Cross-Attention with skip connection
+        
+        # (B, H * W, C) -> (B, H * W, C)
+        x = self.ln2(x)
+        
+        # (B, H * W, C) -> (B, H * W, C)
+        x = self.attention2(x, context)
+        
+        # (B, H * W, C) + (B, H * W, C) -> (B, H * W, C)
+        x += residue_short
+        
+        # (B, H * W, C)
+        residue_short = x
+
+        # Normalization + FFN with GeGLU and skip connection
+        
+        # (B, H * W, C) -> (B, H * W, C)
+        x = self.ln3(x)
+        
+        # GeGLU as implemented in the original code: https://github.com/CompVis/stable-diffusion/blob/21f890f9da3cfbeaba8e2ac3c425ee9e998d5229/ldm/modules/attention.py#L37C10-L37C10
+        # (B, H * W, C) -> two tensors of shape (B, H * W, C * 4)
+        x, gate = self.geglu1(x).chunk(2, dim=-1) 
+        
+        # Element-wise product: (B, H * W, C * 4) * (B, H * W, C * 4) -> (B, H * W, C * 4)
+        x = x * F.gelu(gate)
+        
+        # (B, H * W, C * 4) -> (B, H * W, C)
+        x = self.geglu2(x)
+        
+        # (B, H * W, C) + (B, H * W, C) -> (B, H * W, C)
+        x += residue_short
+        
+        # (B, H * W, C) -> (B, C, H * W)
+        x = x.transpose(-1, -2)
+        
+        # (B, C, H * W) -> (B, C, H, W)
+        x = x.view((B, C, H, W))
+
+        # Final skip connection between initial input and output of the block
+        # (B, C, H, W) + (B, C, H, W) -> (B, C, H, W)
+        return self.conv_output(x) + residue_long
+
 
 class Upsample(nn.Module):
     """
@@ -210,7 +309,7 @@ class Unet(nn.Module):
         x = self.bottleneck(x, context, time)
 
         for layers in self.decoders:
-            # since we always concat with the skip connection of the encoder, the number of features increases before being sent to the decoder's layer
+            # since we always concat with the skip connection of the encoder, the number of C increases before being sent to the decoder's layer
             x = torch.cat((x, skip_connections.pop()), dim=1) 
             x = layers(x, context, time)
         
