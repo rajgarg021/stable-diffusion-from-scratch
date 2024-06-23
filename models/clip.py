@@ -37,27 +37,27 @@ class CLIPLayer(nn.Module):
         # self.n_head = n_head
         # self.head_size = d_embed // n_head
 
-        self.norm1 = nn.LayerNorm(d_embed)
+        self.ln1 = nn.LayerNorm(d_embed)
         self.attention = SelfAttention(n_heads, d_embed)
-        self.norm2 = nn.LayerNorm(d_embed)
-        self.ln1 = nn.Linear(d_embed, 4 * d_embed)
-        self.ln2 = nn.Linear(4 * d_embed, d_embed)
+        self.ln2 = nn.LayerNorm(d_embed)
+        self.linear1 = nn.Linear(d_embed, 4 * d_embed)
+        self.linear2 = nn.Linear(4 * d_embed, d_embed)
 
     def forward(self, x: torch.tensor):
         """ x: (B, seq_len, d_embed) """
 
         ## SELF ATTENTION
         residue = x
-        x = self.norm1(x)
+        x = self.ln1(x)
         x = self.attention(x, causal_mask=True)
         x += residue
 
         ## FEED FORWARD
         residue = x
-        x = self.norm2(x)
-        x = self.ln1(x)
-        x = x * torch.sigmoid(1.702 * x) # quick GELU activation function
         x = self.ln2(x)
+        x = self.linear1(x)
+        x = x * torch.sigmoid(1.702 * x) # quick GELU activation function
+        x = self.linear2(x)
         x += residue
 
         return x
@@ -74,7 +74,7 @@ class CLIP(nn.Module):
             CLIPLayer(n_heads=12, d_embed=768) for i in range(12)
         ])
 
-        self.norm = nn.LayerNorm(768)
+        self.layernorm = nn.LayerNorm(768)
 
     def forward(self, tokens: torch.LongTensor):
         tokens = tokens.type(torch.long)
@@ -86,7 +86,7 @@ class CLIP(nn.Module):
             state = layer(state)
 
         # (B, seq_len, d_embed)
-        output = self.norm(state)
+        output = self.layernorm(state)
 
         return output
     
